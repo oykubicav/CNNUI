@@ -3,3 +3,4 @@ torch
 opencv-python-headless
 numpy
 Pillow
+matplotlib
