@@ -51,7 +51,11 @@ def detect_multiple_stars(image_path, device, classifier_model, regressor_model,
         for x in range(half, w - half + 1, stride):
             patch = gray[y - half:y + half, x - half:x + half]
             if patch.shape != (patch_size, patch_size):
-                continue
+                patch = cv2.copyMakeBorder(
+                patch,
+                top=0, bottom=patch_size - patch.shape[0],
+                left=0, right=patch_size - patch.shape[1],
+                borderType=cv2.BORDER_REFLECT)
 
             patch_tensor = torch.tensor(patch).unsqueeze(0).unsqueeze(0).float().to(device)
 
