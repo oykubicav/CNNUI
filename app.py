@@ -15,7 +15,7 @@ from detect_and_localize import detect_multiple_stars, load_models
 from PIL import Image
 import matplotlib.pyplot as plt
 from langchain_openai import ChatOpenAI
-from langchain_core.prompts import PromptTemplate
+from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import Tool
 from langchain.agents import AgentExecutor, create_react_agent
 from langchain_core.runnables.history import RunnableWithMessageHistory
