@@ -183,7 +183,7 @@ New input:
 {agent_scratchpad}
 """.strip()
 
-agent_prompt = PromptTemplate.from_template(REACT_PREFIX).partial(
+agent_prompt = ChatPromptTemplate.from_template(REACT_PREFIX).partial(
     tools=tool_descriptions, tool_names=tool_names
 )
 
@@ -206,7 +206,7 @@ User: {question}
 Assistant:
 """.strip()
 
-qa_prompt = PromptTemplate.from_template(qa_template)
+qa_prompt = ChatPromptTemplate.from_template(qa_template)
 
 def _qa_context() -> dict:
     has_img = bool(st.session_state.image_path)
