@@ -23,7 +23,7 @@ def load_models(device, classifier_path="star_classifier.pth", regressor_path="b
     return classifier, regressor
 import math
 
-def filter_duplicates(detections, distance_thresh=5.0):
+def filter_duplicates(detections, distance_thresh=3.0):
     filtered = []
     for det in detections:
         x1, y1 = det["pos"]
