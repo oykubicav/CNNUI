@@ -277,6 +277,10 @@ with col_left:
     prob_thr = st.slider("Classifier threshold", 0.0, 1.0, float(st.session_state.last_params["prob_thr"]), 0.01)
     stride   = st.slider("Stride (px)", 4, 32, int(st.session_state.last_params["stride"]), 4)
     patch_sz = st.selectbox("Patch size", [32], index=0, help="Currently fixed to 32 in the pipeline.")
+    sigma = st.slider("Heatmap sigma", 0.5, 3.0, 1.5, 0.1)
+    peak_thr = st.slider("Heatmap peak threshold", 0.05, 0.5, 0.25, 0.01)
+    min_dist = st.slider("Peak min distance (px)", 2, 15, 6, 1)
+
 
     if st.button("Run detection"):
         if not st.session_state.image_path:
@@ -291,6 +295,10 @@ with col_left:
                 patch_size=patch_sz,
                 stride=int(stride),
                 prob_thr=float(prob_thr),
+                sigma=float(sigma),
+                thr=float(peak_thr),
+                min_distance=int(min_dist),
+                
             )
             st.session_state.last_detections = stars
             st.session_state.last_params = {"prob_thr": float(prob_thr), "stride": int(stride), "patch_size": int(patch_sz)}
