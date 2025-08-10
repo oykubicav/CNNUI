@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 import cv2
+from scipy.ndimage import gaussian_filter, maximum_filter
 
 from cnnmodel import CNNModel
 from StarBoxCNN import StarBoxCNN
@@ -21,35 +22,48 @@ def load_models(device, classifier_path="star_classifier.pth", regressor_path="b
     classifier.eval()
     regressor.eval()
     return classifier, regressor
-def filter_duplicates(detections, distance_thresh=8.0, score_key="prob", keep="best"):
-    if not detections:
-        return detections
-    dets = sorted(detections, key=lambda d: float(d.get(score_key, 0.0)), reverse=True)
-    kept = []
-    for d in dets:
-        x1, y1 = d["pos"]
-        merged = False
-        for k in kept:
-            x2, y2 = k["pos"]
-            if (x1 - x2)**2 + (y1 - y2)**2 <= distance_thresh**2:
-                if keep == "avg":
-                    k["pos"] = ((x1 + x2)/2.0, (y1 + y2)/2.0)
-                merged = True
-                break
-        if not merged:
-            kept.append(d)
-    return kept
+
+def accumulate_heatmap(h, w, detections, sigma=1.5, splat_strength="prob"):
+    
+    heat = np.zeros((h, w), dtype=np.float32)
+    for d in detections:
+        x, y = d["pos"]
+        v = float(d.get(splat_strength, 1.0))
+        ix, iy = int(round(x)), int(round(y))
+        if 0 <= iy < h and 0 <= ix < w:
+            heat[iy, ix] += v
+
+    heat = gaussian_filter(heat, sigma=sigma)
+
+    m = heat.max()
+    if m > 0:
+        heat /= m
+    return heat
+
+def nms_on_heatmap(heat, thr=0.2, min_distance=6):
+
+    neighborhood = maximum_filter(heat, size=min_distance)
+    peaks_mask = (heat == neighborhood) & (heat >= thr)
+
+    ys, xs = np.where(peaks_mask)
+    peaks = [(float(x), float(y), float(heat[y, x])) for x, y in zip(xs, ys)]
+    peaks.sort(key=lambda t: t[2], reverse=True)
+    return peaks
 
 def detect_multiple_stars(image_path, device, classifier_model, regressor_model,
-                          patch_size=32, stride=8, prob_thr=0.2, merge_radius=8.0):
+                          patch_size=32, stride=8, prob_thr=0.2,
+                          sigma=1.5, thr=0.25, min_distance=6):
+  
     gray = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE).astype(np.float32) / 255.0
     h, w = gray.shape
     half = patch_size // 2
-    detected_stars = []
+
+    raw_detections = []
+
 
     for y in range(half, h - half + 1, stride):
         for x in range(half, w - half + 1, stride):
-            patch = gray[y-half:y+half, x-half:x+half]
+            patch = gray[y - half:y + half, x - half:x + half]
             if patch.shape != (patch_size, patch_size):
                 patch = cv2.copyMakeBorder(
                     patch,
@@ -66,17 +80,34 @@ def detect_multiple_stars(image_path, device, classifier_model, regressor_model,
                 continue
 
             with torch.no_grad():
-                dx, dy = (regressor_model(patch_tensor)[0].cpu().numpy() * half)
-            star_x = np.clip(x + dx, 0, w - 1)
-            star_y = np.clip(y + dy, 0, h - 1)
+                offset = regressor_model(patch_tensor)[0].cpu().numpy() * half
+                dx, dy = offset
+                star_x = np.clip(x + dx, 0, w - 1)
+                star_y = np.clip(y + dy, 0, h - 1)
 
-            detected_stars.append({
-                "pos": (float(star_x), float(star_y)),
-                "offset": (float(dx), float(dy)),
+            brightness = calculate_brightness(gray, star_x, star_y, radius=5)
+
+            raw_detections.append({
+                "pos": (star_x, star_y),
+                "offset": (dx, dy),
                 "center": (x, y),
-                "brightness": float(calculate_brightness(gray, star_x, star_y, radius=5)),
-                "prob": float(prob),
+                "brightness": brightness,
+                "prob": prob
             })
 
-    return filter_duplicates(detected_stars, distance_thresh=merge_radius)
+    heat = accumulate_heatmap(h, w, raw_detections, sigma=sigma, splat_strength="prob")
 
+    peaks = nms_on_heatmap(heat, thr=thr, min_distance=min_distance)
+
+    final_detections = []
+    for px, py, score in peaks:
+        b = calculate_brightness(gray, px, py, radius=5)
+        final_detections.append({
+            "pos": (px, py),
+            "offset": (0.0, 0.0),     
+            "center": (px, py),
+            "brightness": b,
+            "prob": score
+        })
+
+    return final_detections
