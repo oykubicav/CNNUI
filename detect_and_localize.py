@@ -19,24 +19,35 @@ def load_models(device, classifier_path="star_classifier.pth", regressor_path="b
     regressor.load_state_dict(torch.load(regressor_path, map_location=device))
 
     classifier.eval()
-    regressor.eval()
-    return classifier, regressor
+        regressor.eval()
+        return classifier, regressor
+    import math
+
 import math
 
-def filter_duplicates(detections, distance_thresh=3.0):
-    filtered = []
-    for det in detections:
-        x1, y1 = det["pos"]
-        too_close = False
-        for kept in filtered:
-            x2, y2 = kept["pos"]
-            dist = math.hypot(x1 - x2, y1 - y2)
-            if dist < distance_thresh:
-                too_close = True
+def filter_duplicates(detections, distance_thresh=8.0, score_key="prob", keep="best"):
+    if not detections:
+        return detections
+
+    dets = sorted(detections, key=lambda d: float(d.get(score_key, 0.0)), reverse=True)
+
+    kept = []
+    for d in dets:
+        x1, y1 = d["pos"]
+        merged = False
+        for k in kept:
+            x2, y2 = k["pos"]
+            if (x1 - x2)**2 + (y1 - y2)**2 <= distance_thresh**2:
+                if keep == "best":
+                    pass
+                elif keep == "avg":
+                    k["pos"] = ((x1 + x2)/2.0, (y1 + y2)/2.0)
+                merged = True
                 break
-        if not too_close:
-            filtered.append(det)
-    return filtered
+        if not merged:
+            kept.append(d)
+    return kept
+
 
 
 def detect_multiple_stars(image_path, device, classifier_model, regressor_model,
