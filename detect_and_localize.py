@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 import cv2
+
 from cnnmodel import CNNModel
 from StarBoxCNN import StarBoxCNN
 
@@ -8,8 +9,7 @@ def calculate_brightness(gray_image, x, y, radius=5):
     h, w = gray_image.shape
     y_grid, x_grid = np.ogrid[:h, :w]
     mask = (x_grid - x)**2 + (y_grid - y)**2 <= radius**2
-    brightness = gray_image[mask].mean()
-    return brightness
+    return gray_image[mask].mean()
 
 def load_models(device, classifier_path="star_classifier.pth", regressor_path="best_model.pth"):
     classifier = CNNModel().to(device)
@@ -19,18 +19,12 @@ def load_models(device, classifier_path="star_classifier.pth", regressor_path="b
     regressor.load_state_dict(torch.load(regressor_path, map_location=device))
 
     classifier.eval()
-        regressor.eval()
-        return classifier, regressor
-    import math
-
-import math
-
+    regressor.eval()
+    return classifier, regressor
 def filter_duplicates(detections, distance_thresh=8.0, score_key="prob", keep="best"):
     if not detections:
         return detections
-
     dets = sorted(detections, key=lambda d: float(d.get(score_key, 0.0)), reverse=True)
-
     kept = []
     for d in dets:
         x1, y1 = d["pos"]
@@ -38,9 +32,7 @@ def filter_duplicates(detections, distance_thresh=8.0, score_key="prob", keep="b
         for k in kept:
             x2, y2 = k["pos"]
             if (x1 - x2)**2 + (y1 - y2)**2 <= distance_thresh**2:
-                if keep == "best":
-                    pass
-                elif keep == "avg":
+                if keep == "avg":
                     k["pos"] = ((x1 + x2)/2.0, (y1 + y2)/2.0)
                 merged = True
                 break
@@ -48,25 +40,23 @@ def filter_duplicates(detections, distance_thresh=8.0, score_key="prob", keep="b
             kept.append(d)
     return kept
 
-
-
 def detect_multiple_stars(image_path, device, classifier_model, regressor_model,
-                          patch_size=32, stride=8, prob_thr=0.2):
+                          patch_size=32, stride=8, prob_thr=0.2, merge_radius=8.0):
     gray = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE).astype(np.float32) / 255.0
     h, w = gray.shape
     half = patch_size // 2
-
     detected_stars = []
 
     for y in range(half, h - half + 1, stride):
         for x in range(half, w - half + 1, stride):
-            patch = gray[y - half:y + half, x - half:x + half]
+            patch = gray[y-half:y+half, x-half:x+half]
             if patch.shape != (patch_size, patch_size):
                 patch = cv2.copyMakeBorder(
-                patch,
-                top=0, bottom=patch_size - patch.shape[0],
-                left=0, right=patch_size - patch.shape[1],
-                borderType=cv2.BORDER_REFLECT)
+                    patch,
+                    top=0, bottom=patch_size - patch.shape[0],
+                    left=0, right=patch_size - patch.shape[1],
+                    borderType=cv2.BORDER_REFLECT
+                )
 
             patch_tensor = torch.tensor(patch).unsqueeze(0).unsqueeze(0).float().to(device)
 
@@ -76,21 +66,17 @@ def detect_multiple_stars(image_path, device, classifier_model, regressor_model,
                 continue
 
             with torch.no_grad():
-                offset = regressor_model(patch_tensor)[0].cpu().numpy() * half
-                dx, dy = offset
-
-                star_x = np.clip(x + dx, 0, w - 1)
-                star_y = np.clip(y + dy, 0, h - 1)
-
-            brightness = calculate_brightness(gray, star_x, star_y, radius=5)
+                dx, dy = (regressor_model(patch_tensor)[0].cpu().numpy() * half)
+            star_x = np.clip(x + dx, 0, w - 1)
+            star_y = np.clip(y + dy, 0, h - 1)
 
             detected_stars.append({
-                "pos": (star_x, star_y),
-                "offset": (dx, dy),
+                "pos": (float(star_x), float(star_y)),
+                "offset": (float(dx), float(dy)),
                 "center": (x, y),
-                "brightness": brightness,
-                "prob": prob
+                "brightness": float(calculate_brightness(gray, star_x, star_y, radius=5)),
+                "prob": float(prob),
             })
 
-    return filter_duplicates(detected_stars)
+    return filter_duplicates(detected_stars, distance_thresh=merge_radius)
 
