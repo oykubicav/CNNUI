@@ -25,7 +25,7 @@ def train():
         num_negative=10
     )
 
-    # 🟢 folder2_path parametresi verilmedi (None da verilmedi)
+
     val = StarPatchDatasetMulti(
         folder1_path='/Users/oykubicav/Desktop/CNN/data/stars/val',
         patch_size=32,
