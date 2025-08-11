@@ -15,11 +15,11 @@ class CNNBrightness(nn.Module):
             nn.MaxPool2d(2)                             # -> [B, 64, 4, 4]
         )
 
-        self.classifier = nn.Sequential(               # ❗ DİKKAT: == yerine = olmalıydı
+        self.classifier = nn.Sequential(            
             nn.Flatten(),                              # -> [B, 64*4*4]
             nn.Linear(64 * 4 * 4, 128),
             nn.ReLU(),
-            nn.Linear(128, 1)                           # brightness output (regression)
+            nn.Linear(128, 1)                           
         )
 
     def forward(self, x):
