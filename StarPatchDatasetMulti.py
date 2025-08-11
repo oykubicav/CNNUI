@@ -35,7 +35,7 @@ class StarPatchDatasetMulti(Dataset):
                 if len(ds) > 0:
                     self.datasets.append(ds)
 
-        # UNRELATED PATCHLER (eğer varsa)
+        # UNRELATED PATCHLER
         if folder2_path:
             unrelated_files = sorted(glob.glob(os.path.join(folder2_path, "image_*.png")))
             for unrelated_path in unrelated_files:
