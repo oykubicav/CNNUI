@@ -3,7 +3,7 @@ import numpy as np
 import torch
 from torchvision import transforms
 from cnnmodel import CNNModel
-from sliding_window import sliding_window  # Eğer içinde coord return ediyorsa
+from sliding_window import sliding_window 
 
 def detect_stars_on_full_image(model, image_path, device='cpu', threshold=0.5):
     model.eval()
