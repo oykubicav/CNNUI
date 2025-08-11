@@ -28,7 +28,7 @@ def visualize(model, dataset, device, filename="test_visualization.png", num_sam
     plt.tight_layout()
     plt.savefig(filename)
     plt.close()
-    print(f"✓ Test görselleştirmesi kaydedildi: {filename}")
+    print(f"Test görselleştirmesi kaydedildi: {filename}")
 
 def visualize_all(model, dataset, device, max_offset=16, save_dir="predictions"):
     import os
