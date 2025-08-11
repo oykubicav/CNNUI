@@ -29,7 +29,7 @@ def train():
         model.train()
         total_train_loss = 0
 
-        for x, y, *_ in train_loader:   # *_ tüm ekstra öğeleri yoksayar
+        for x, y, *_ in train_loader:   
 
             x = x.to(device)
             y = y.to(device)
