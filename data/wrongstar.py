@@ -1,26 +1,18 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-"""
-build_and_split_star_dataset.py
---------------------------------
-• 100 sentetik yıldız görüntüsü (512×512, gri PNG)
-• coords_###.csv → class,x,y,w,h,brightness
-• /dataset/{train,val,test}/image_###.png + csv
-"""
+
 
 import os, random, math, shutil
 import numpy as np
 import pandas as pd
 import cv2
 
-# ----------- Ayarlar -----------
-N_IMAGES   = 100          # toplam yıldızlı görsel
-PATCH_SIZE = 512          # px
-OUT_ROOT   = "dataset"    # nihai kök klasör
-SPLIT      = (0.70, 0.15, 0.15)  # train/val/test oranı
+
+N_IMAGES   = 100         
+PATCH_SIZE = 512          
+OUT_ROOT   = "dataset"    
+SPLIT      = (0.70, 0.15, 0.15)  
 SEED       = 42
 random.seed(SEED); np.random.seed(SEED)
-# --------------------------------
+
 
 TMP_DIR = "_tmp_starimages"
 os.makedirs(TMP_DIR, exist_ok=True)
@@ -41,7 +33,7 @@ def build_one(idx):
         add_star(img, cx, cy, sigma)
         rows.append([1, cx/PATCH_SIZE, cy/PATCH_SIZE, 0, 0, round(sigma,3)])
 
-    # hafif gürültü
+
     img += np.random.poisson(lam=2, size=img.shape)
     img = np.clip(img, 0, 255).astype(np.uint8)
 
@@ -56,7 +48,7 @@ for i in range(N_IMAGES):
     build_one(i)
 print("✔ Üretim tamam.")
 
-# ---------- Split ----------
+
 png_files = sorted([f for f in os.listdir(TMP_DIR) if f.endswith(".png")])
 random.shuffle(png_files)
 
@@ -79,17 +71,17 @@ for split_name, files in splits.items():
     for png in files:
         csv = png.replace("image_", "coords_").replace(".png", ".csv")
 
-        # PNG
+    
         shutil.move(os.path.join(TMP_DIR, png),
                     os.path.join(split_dir, png))
-        # CSV
+
         shutil.move(os.path.join(TMP_DIR, csv),
                     os.path.join(split_dir, csv))
 
-# temizlik
+
 shutil.rmtree(TMP_DIR)
 
-# --------- Doğrulama ---------
+
 def check_csv(folder):
     for csv in os.listdir(folder):
         if not csv.endswith(".csv"): continue
