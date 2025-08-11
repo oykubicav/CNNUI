@@ -7,7 +7,7 @@ import random
 import os
 
 
-    # StarPatchDataset.py
+
 
 class StarPatchDataset(Dataset):
     def __init__(self, img_path, coord_csv=None, patch_size=32, num_negative=10, transform=None, use_unrelated=False, unrelated_path=None):
@@ -37,7 +37,7 @@ class StarPatchDataset(Dataset):
                     patch = self.extract_patch(x, y)
                     self.patches.append(patch)
                     self.labels.append(1.0)
-                    self.positions.append((x, y, filename))  # ✅ filename eklendi
+                    self.positions.append((x, y, filename))  
 
             negatives, tries = 0, 0
             while negatives < num_negative and tries < num_negative * 20:
@@ -63,7 +63,7 @@ class StarPatchDataset(Dataset):
                                       x - patch_size//2 : x + patch_size//2]
                 self.patches.append(patch)
                 self.labels.append(0.0)
-                self.positions.append((x, y, filename))  # ✅ filename eklendi
+                self.positions.append((x, y, filename))  
 
     def __getitem__(self, idx):
         patch = np.expand_dims(self.patches[idx], 0)
