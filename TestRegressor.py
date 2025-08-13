@@ -1,94 +1,87 @@
 import torch
-from torch.utils.data import Dataset
-import cv2
-import numpy as np
-import pandas as pd
+import matplotlib.pyplot as plt
+from torch.optim import Adam
+from torch.utils.data import DataLoader
+from StarBoxCNN import StarBoxCNN
+from StarBoxDatasetMulti import StarBoxDatasetMulti
+from torch import nn
 
-class StarBoxDataset(Dataset):
-    def __init__(self, img_path, coord_csv, patch_size=32, num_offset=10, transform=None):
-        self.image = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE).astype(np.float32) / 255.0
-        self.h, self.w = self.image.shape
-        self.patch_size = patch_size
-        halfpatch = self.patch_size//2
-        self.transform = transform
-        self.patches = []
-        self.offsets = []
-        self.positions = []
-        self.stars = []
-        self.brightness_values = []
 
-        coor = pd.read_csv(coord_csv, header=None, names=['class', 'x', 'y', 'w', 'h', 'brightness'])
-       
-        self.star_coords = [
-            (int(x * self.w), int(y * self.h), float(b))
-            for x, y, b in coor[['x', 'y', 'brightness']].values
-        ]
+def visualize(model, dataset, device, filename="test_visualization.png", num_samples=5):
+    model.eval()
+    plt.figure(figsize=(15, 3))
+    for i in range(num_samples):
+        patch, offset, (x, y), (sx, sy), _ = dataset[i]
+        patch = patch.to(device).unsqueeze(0)
+        #add detach to stop autograd process
+        pred = model(patch).detach().cpu()[0]
+        dx_pred, dy_pred = pred[0] * 16, pred[1] * 16
+        px, py = x + dx_pred, y + dy_pred
+        #remove first 2 dimensions
+        img = patch[0][0].cpu().numpy()
+        plt.subplot(1, num_samples, i + 1)
+        plt.imshow(img, cmap='gray')
+        #patch center (16,16)
+        plt.scatter([sx - x + 16], [sy - y + 16], c='lime', label='GT', marker='x')
+        plt.scatter([px - x + 16], [py - y + 16], c='red', label='Pred', marker='o')
+        plt.axis('off')
 
-        count, attempts = 0, 0
-        while count < num_offset and attempts < num_offset * 10:
-            x = np.random.randint(patch_size // 2, self.w - patch_size // 2)
-            y = np.random.randint(patch_size // 2, self.h - patch_size // 2)
+    plt.suptitle("Green = GT, Red = Prediction", fontsize=12)
+    plt.tight_layout()
+    plt.savefig(filename)
+    plt.close()
+    print(f"Test görselleştirmesi kaydedildi: {filename}")
 
-            if not self.is_valid_patch(x, y):
-                attempts += 1
-                continue
+def visualize_all(model, dataset, device, max_offset=16, save_dir="predictions"):
+    import os
+    os.makedirs(save_dir, exist_ok=True)
 
-            dx, dy, star_x, star_y, brightness = self.find_closest_star_offset_and_brightness(x, y)
-            if dx is None or dy is None:
-                attempts += 1
-                continue
+    model.eval()
+    for i in range(len(dataset)):
+        patch, offset, (x, y), (sx, sy), _ = dataset[i]
+        pred = model(patch.unsqueeze(0).to(device)).detach().cpu()[0]
+        dx_pred, dy_pred = pred[0] * max_offset, pred[1] * max_offset
+        px, py = x + dx_pred, y + dy_pred
 
-            patch = self.image[y - patch_size // 2:y + patch_size // 2,
-                               x - patch_size // 2:x + patch_size // 2]
-            self.patches.append(patch)
-            self.offsets.append((dx/halfpatch, dy/halfpatch))
-            self.positions.append((x, y))
-            self.stars.append((star_x, star_y))
-            self.brightness_values.append(brightness)
-            count += 1
-            attempts += 1
+        img = patch[0].numpy()
+        plt.figure()
+        plt.imshow(img, cmap='gray')
+        plt.scatter([sx - x + 16], [sy - y + 16], c='lime', label='GT', marker='x')
+        plt.scatter([px - x + 16], [py - y + 16], c='red', label='Pred', marker='o')
+        plt.legend()
+        plt.axis('off')
+        plt.tight_layout()
+        plt.savefig(os.path.join(save_dir, f"pred_{i:03}.png"))
+        plt.close()
 
-    def is_valid_patch(self, x, y):
-        half = self.patch_size // 2
-        return (
-            (x - half >= 0) and (x + half < self.w) and
-            (y - half >= 0) and (y + half < self.h)
-        )
+def test(model_path="best_model.pth", test_folder="data/stars/test"):
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    model = StarBoxCNN().to(device)
+    model.load_state_dict(torch.load(model_path, map_location=device))
+    model.eval()
 
-    def find_closest_star_offset_and_brightness(self, x, y):
-        half = self.patch_size // 2
-        min_dist = float('inf')
-        closest_offset = (None, None)
-        star_pos = (None, None)
-        brightness = 0.0
+    test_dataset = StarBoxDatasetMulti(test_folder, patch_size=32, num_negative=10)
+    test_loader = DataLoader(test_dataset, batch_size=32)
 
-        for sx, sy, b in self.star_coords:
-            if abs(sx - x) > half or abs(sy - y) > half:
-                continue
+    criterion = nn.MSELoss()
+    total_loss = 0
 
-            dx = sx - x
-            dy = sy - y
-            dist = dx ** 2 + dy ** 2
+    with torch.no_grad():
+        for x, y, *_ in test_loader:
+            x, y = x.to(device), y.to(device)
+            y_pred = model(x)
+            total_loss += criterion(y_pred, y).item() * x.size(0)
 
-            if dist < min_dist:
-                min_dist = dist
-                closest_offset = (dx, dy)
-                star_pos = (sx, sy)
-                brightness = b
+    avg_loss = total_loss / len(test_loader.dataset)
+    print(f"\n Test Loss (MSE): {avg_loss:.4f}")
 
-        return (*closest_offset, *star_pos, brightness)
+    visualize_all(model, test_dataset, device)
 
-    def __len__(self):
-        return len(self.patches)
 
-    def __getitem__(self, idx):
-        patch = np.expand_dims(self.patches[idx], axis=0)
-        offset = self.offsets[idx]
-        brightness = self.brightness_values[idx]
-        return (
-            torch.tensor(patch, dtype=torch.float32),
-            torch.tensor(offset, dtype=torch.float32),
-            self.positions[idx],
-            self.stars[idx],
-            torch.tensor(brightness, dtype=torch.float32)
-        )
+if __name__ == "__main__":
+    test()
+    
+    
+
+
+
