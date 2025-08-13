@@ -12,7 +12,7 @@ from StarPatchDatasetMulti import StarPatchDatasetMulti
 def train():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = CNNModel().to(device)
-
+   #BCE->cross entropy loss that comes inside a sigmoid function    
     criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([10.0], device=device))
 
     optimizer = Adam(model.parameters(), lr=1e-3)
