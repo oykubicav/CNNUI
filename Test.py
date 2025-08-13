@@ -39,12 +39,12 @@ with torch.no_grad():
     for x, y, (px, py, img_name) in test_loader:
         x, y = x.to(device), y.to(device)
         y_pred = model(x)
-
+        #flatten and give to sigmoid
         prob = torch.sigmoid(y_pred.view(-1))
         print(f"{img_name[0]} → prob: {prob.item():.4f}")
 
         loss = criterion(y_pred.view(-1), y.view(-1))
-
+        #use item() to conv tensor to float
         total_loss += loss.item()
         predictions.extend(prob.cpu().numpy())
         targets.extend(y.view(-1).cpu().numpy())
@@ -114,7 +114,7 @@ try:
 
     plt.tight_layout()
     plt.savefig('training_results.png', dpi=300)
-    print("📊 Saved training_results.png")
+    print("Saved training_results.png")
     plt.close()
 
 except Exception as e:
