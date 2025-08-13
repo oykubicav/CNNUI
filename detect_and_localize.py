@@ -41,7 +41,7 @@ def accumulate_heatmap(h, w, detections, sigma=1.5, splat_strength="prob"):
     return heat
 
 def nms_on_heatmap(heat, thr=0.2, min_distance=6):
-
+    #calcs max value for every pixels min*min surr.
     neighborhood = maximum_filter(heat, size=min_distance)
     peaks_mask = (heat == neighborhood) & (heat >= thr)
 
@@ -65,6 +65,7 @@ def detect_multiple_stars(image_path, device, classifier_model, regressor_model,
         for x in range(half, w - half + 1, stride):
             patch = gray[y - half:y + half, x - half:x + half]
             if patch.shape != (patch_size, patch_size):
+                #fill if patch is smaller
                 patch = cv2.copyMakeBorder(
                     patch,
                     top=0, bottom=patch_size - patch.shape[0],
